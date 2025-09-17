@@ -63,18 +63,21 @@ function LandingPage() {
       }
 
       // 4. Redirect based on role
-      const roleRoutes = {
-        'Executive': '/order',
-        'Admin': '/admin-dashboard',
-        'Designer': '/designer-dashboard',
-        'Account': '/account-dashboard',
-        'Service Executive': '/service-dashboard',
-        'Service Manager': '/service-manager-dashboard',
-        'Sales Manager': '/sales-manager-dashboard',
-        'Digital Marketing': '/digital-dashboard',
-        'Vendor': '/vendor-dashboard',
-        'IT': '/it-dashboard' // Added IT Dashboard route
-      };
+const roleRoutes = {
+  'Executive': '/order',
+  'Admin': '/admin-dashboard',
+  'Designer': '/designer-dashboard',
+  'Account': '/account-dashboard',
+  'Service Executive': '/service-dashboard',
+  'Service Manager': '/service-manager-dashboard',
+  'Sales Manager': '/sales-manager-dashboard',
+  'Digital Marketing': '/digital-dashboard',
+  'Vendor': '/vendor-dashboard',
+  'IT': '/it-dashboard',
+  'Unit': '/order',                // Redirect to executive order page
+  'FieldExecutive': '/order',      // Redirect to executive order page
+  'fieldexecutive': '/order'       // Keep backward compatibility
+};
 
       const route = roleRoutes[role];
       if (route) {

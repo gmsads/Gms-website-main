@@ -33,7 +33,7 @@ const AddExecutiveAdmin = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setIsSubmitting(true);
-
+  
     // Basic validation
     if (!formData.username || !formData.name || !formData.phone || !formData.password) {
       setPopupMessage('Please fill all required fields');
@@ -41,7 +41,7 @@ const AddExecutiveAdmin = () => {
       setIsSubmitting(false);
       return;
     }
-
+  
     // Validate image if uploaded
     if (image) {
       const validTypes = ['image/jpeg', 'image/png', 'image/gif'];
@@ -51,7 +51,7 @@ const AddExecutiveAdmin = () => {
         setIsSubmitting(false);
         return;
       }
-
+  
       if (image.size > 2 * 1024 * 1024) {
         setPopupMessage('Image size should be less than 2MB');
         setShowPopup(true);
@@ -59,17 +59,44 @@ const AddExecutiveAdmin = () => {
         return;
       }
     }
-
+  
+    // Map frontend role values to backend endpoints
+    const roleEndpointMap = {
+      'executive': 'add-executive',
+      'admin': 'add-admin',
+      'designer': 'add-designer',
+      'account': 'add-account',
+      'Service Executive': 'add-service-executive',
+      'Service Manager': 'add-service-manager',
+      'Sales Manager': 'add-sales-manager',
+      'IT Team': 'add-it-team',
+      'Digital Marketing': 'add-digital-marketing',
+      'Client Service': 'add-clientservice',
+      'unit': 'add-unit',
+      'FieldExecutive': 'add-field-executive'
+    };
+  
+    const endpoint = roleEndpointMap[formData.role];
+    
+    if (!endpoint) {
+      setPopupMessage('Invalid role selected');
+      setShowPopup(true);
+      setIsSubmitting(false);
+      return;
+    }
+  
     const data = new FormData();
     for (const key in formData) {
-      data.append(key, formData[key]);
+      if (key !== 'role') { // Don't send role in form data
+        data.append(key, formData[key]);
+      }
     }
     if (image) {
       data.append('image', image);
     }
-
+  
     try {
-      const response = await axios.post(`${API_BASE_URL}/add-employee`, data, {
+      const response = await axios.post(`${API_BASE_URL}/${endpoint}`, data, {
         headers: {
           'Content-Type': 'multipart/form-data',
         },
@@ -97,9 +124,9 @@ const AddExecutiveAdmin = () => {
       let message = 'Failed to add employee';
       if (error.response) {
         if (error.response.status === 404) {
-          message = 'Endpoint not found (404) - check server routes';
+          message = `Endpoint not found (404) - ${endpoint} does not exist on server`;
         } else {
-          message = error.response.data.message || message;
+          message = error.response.data.error || error.response.data.message || message;
         }
       } else if (error.request) {
         message = 'No response from server - is it running?';
@@ -112,7 +139,6 @@ const AddExecutiveAdmin = () => {
       setIsSubmitting(false);
     }
   }
-
   const styles = {
     formContainer: {
       backgroundColor: '#fff',
@@ -424,6 +450,7 @@ const AddExecutiveAdmin = () => {
                 <option value="Digital Marketing">Digital Marketing</option>
                 <option value="Client Service">Client Service</option>
                   <option value="unit">Unit</option>
+               <option value="FieldExecutive">Field Executive</option>
               </select>
             </div>
           </div>

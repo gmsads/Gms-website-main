@@ -363,7 +363,7 @@ const Prospective = () => {
     <div style={styles.container}>
       {!showProspectForm && !viewMode && !location.state?.phoneNumber ? (
         <div style={styles.searchContainer}>
-          <h1 style={styles.formTitle}>Search Prospect</h1>
+          <h1 style={styles.formTitle}>Search</h1>
           <div>
             <label style={styles.inputLabel}>Enter Phone Number:</label>
             <input
@@ -388,7 +388,7 @@ const Prospective = () => {
               disabled={isLoading || phoneNumber.length !== 10}
               style={{ ...styles.button, width: '100%' }}
             >
-              {isLoading ? 'Searching...' : 'Search Prospect'}
+              {isLoading ? 'Searching...' : 'Search'}
             </button>
           </div>
         </div>

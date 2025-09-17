@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import { parseISO, isBefore } from 'date-fns';
@@ -147,6 +148,7 @@ const ProfileModal = ({ user, onClose, onSave }) => {
             >
               <option value="">Select Role</option>
               <option value="executive">Executive</option>
+              <option value="fieldexecutive">Field Executive</option>
               <option value="admin">Admin</option>
               <option value="designer">Designer</option>
               <option value="account">Account</option>
@@ -221,12 +223,84 @@ const ExecutiveDashboard = () => {
     return name ? name.split(' ').map(n => n[0]).join('').toUpperCase() : '';
   };
 
+  // Check if user is a field executive
+  const isFieldExecutive = useCallback(() => {
+    console.log('Current user role:', userProfile.role);
+    // Check for all possible formats
+    const role = userProfile.role?.toLowerCase();
+    return role === 'fieldexecutive' || 
+           role === 'field executive' ||
+           role === 'fieldexec' ||
+           role === 'field';
+  }, [userProfile.role]);
+
+  // Event handlers - MOVE THESE BEFORE ANY JSX USAGE
+  const handleSaveProfile = async (updatedProfile) => {
+    try {
+      await axios.put('/api/update-profile', {
+        name: userProfile.name.trim(),
+        updates: updatedProfile
+      });
+      setUserProfile(prev => ({
+        ...prev,
+        ...updatedProfile,
+        active: updatedProfile.active
+      }));
+      return true;
+    } catch (error) {
+      console.error("Update failed:", error);
+      throw error;
+    }
+  };
+
+  const handleNotificationClick = () => {
+    localStorage.setItem('lastSeenAppointmentCount', appointmentCount);
+    setHasNewAppointments(false);
+    navigate('/pending-service');
+  };
+
+  const handleNewAppointmentsClick = () => {
+    localStorage.setItem('lastSeenAppointmentCount', appointmentCount);
+    setHasNewAppointments(false);
+    navigate('/new-appointment');
+  };
+
+  const handleFollowUpsClick = () => {
+    navigate('/followup');
+  };
+
+  const handleFieldExecutivePage = () => {
+    console.log('Navigating to field executive page');
+    navigate('/field-executive');
+  };
+
+  const handleCalendarClick = () => {
+    setShowMonthPicker(true);
+  };
+
+  const handleMonthYearChange = (date) => {
+    setSelectedDate(date);
+    setShowMonthPicker(false);
+  };
+
+  const handleServiceSliceClick = (data) => {
+    if (data.name === 'Pending') {
+      navigate('/pending-service', { state: { executive: selectedExecutive } });
+    }
+  };
+
+  const handlePaymentSliceClick = (data) => {
+    if (data.name === 'Unpaid') {
+      navigate('/pending-payment', { state: { executive: selectedExecutive } });
+    }
+  };
+
   // Data fetching functions
   const fetchExecutiveData = useCallback(async (executiveName) => {
     try {
       const month = selectedDate.getMonth() + 1;
       const year = selectedDate.getFullYear();
-      
+
       const res = await axios.get(`/api/executive/${executiveName}`, {
         params: { month, year }
       });
@@ -260,7 +334,7 @@ const ExecutiveDashboard = () => {
     try {
       const month = selectedDate.getMonth() + 1;
       const year = selectedDate.getFullYear();
-      
+
       const res = await axios.get('/api/orders/pending-payments', {
         params: { month, year }
       });
@@ -282,7 +356,7 @@ const ExecutiveDashboard = () => {
     try {
       const month = selectedDate.getMonth() + 1;
       const year = selectedDate.getFullYear();
-      
+
       const res = await axios.get('/api/appointments', {
         params: { month, year }
       });
@@ -303,10 +377,10 @@ const ExecutiveDashboard = () => {
     try {
       const month = selectedDate.getMonth() + 1;
       const year = selectedDate.getFullYear();
-      
+
       const res = await axios.get('/api/follow-ups', {
-        params: { 
-          month, 
+        params: {
+          month,
           year,
           executive: selectedExecutive
         }
@@ -339,9 +413,9 @@ const ExecutiveDashboard = () => {
     try {
       const month = selectedDate.getMonth() + 1;
       const year = selectedDate.getFullYear();
-      
+
       const res = await axios.get('/api/prospective-clients', {
-        params: { 
+        params: {
           month,
           year,
           userName: selectedExecutive,
@@ -411,8 +485,8 @@ const ExecutiveDashboard = () => {
       fetchUserProfile();
       fetchProspects();
     }
-  }, [selectedExecutive, selectedDate, fetchExecutiveData, fetchPendingPayments, 
-      fetchAppointmentCount, fetchFollowUpCount, fetchUserProfile, fetchProspects]);
+  }, [selectedExecutive, selectedDate, fetchExecutiveData, fetchPendingPayments,
+    fetchAppointmentCount, fetchFollowUpCount, fetchUserProfile, fetchProspects]);
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -426,62 +500,37 @@ const ExecutiveDashboard = () => {
     return () => clearInterval(interval);
   }, [selectedExecutive, fetchAppointmentCount, fetchFollowUpCount, fetchProspects]);
 
-  // Event handlers
-  const handleSaveProfile = async (updatedProfile) => {
-    try {
-      await axios.put('/api/update-profile', {
-        name: userProfile.name.trim(),
-        updates: updatedProfile
-      });
-      setUserProfile(prev => ({
-        ...prev,
-        ...updatedProfile,
-        active: updatedProfile.active
-      }));
-      return true;
-    } catch (error) {
-      console.error("Update failed:", error);
-      throw error;
-    }
-  };
+  // Add this useEffect to fetch initial user profile immediately
+  useEffect(() => {
+    const fetchInitialUserProfile = async () => {
+      const loggedInUser = localStorage.getItem('userName');
+      if (loggedInUser) {
+        try {
+          const response = await axios.get('/api/user-profile', {
+            params: { name: loggedInUser }
+          });
 
-  // eslint-disable-next-line no-unused-vars
-  const handleNotificationClick = () => {
-    localStorage.setItem('lastSeenAppointmentCount', appointmentCount);
-    setHasNewAppointments(false);
-    navigate('/pending-service');
-  };
+          if (response.data) {
+            setUserProfile({
+              name: response.data.name,
+              phone: response.data.phone,
+              role: response.data.role.toLowerCase()
+            });
+            console.log('Initial user profile fetched:', response.data);
+          }
+        } catch (error) {
+          console.error('Error fetching initial user profile:', error);
+        }
+      }
+    };
 
-  const handleNewAppointmentsClick = () => {
-    localStorage.setItem('lastSeenAppointmentCount', appointmentCount);
-    setHasNewAppointments(false);
-    navigate('/new-appointment');
-  };
+    fetchInitialUserProfile();
+  }, []);
 
-  const handleFollowUpsClick = () => {
-    navigate('/followup');
-  };
-
-  const handleCalendarClick = () => {
-    setShowMonthPicker(true);
-  };
-
-  const handleMonthYearChange = (date) => {
-    setSelectedDate(date);
-    setShowMonthPicker(false);
-  };
-
-  const handleServiceSliceClick = (data) => {
-    if (data.name === 'Pending') {
-      navigate('/pending-service', { state: { executive: selectedExecutive } });
-    }
-  };
-
-  const handlePaymentSliceClick = (data) => {
-    if (data.name === 'Unpaid') {
-      navigate('/pending-payment', { state: { executive: selectedExecutive } });
-    }
-  };
+  useEffect(() => {
+    console.log('User profile updated:', userProfile);
+    console.log('Is field executive:', isFieldExecutive());
+  }, [userProfile, isFieldExecutive]);
 
   // Data for charts
   const pieData = [
@@ -519,15 +568,15 @@ const ExecutiveDashboard = () => {
             </span>
           </button>
         </div>
-        
-        <button 
-          className="mobile-menu-btn" 
+
+        <button
+          className="mobile-menu-btn"
           onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
           aria-expanded={mobileMenuOpen}
         >
           {mobileMenuOpen ? '✕' : '☰'}
         </button>
-        
+
         <div className={`header-right ${mobileMenuOpen ? 'mobile-open' : ''}`}>
           <div className="action-buttons">
             <button
@@ -541,7 +590,17 @@ const ExecutiveDashboard = () => {
                 </span>
               )}
             </button>
-            
+
+            {/* Field Executive Button - Only visible to field executives */}
+            {isFieldExecutive() && (
+              <button
+                onClick={handleFieldExecutivePage}
+                className="field-executive-btn"
+              >
+                Field Executive
+              </button>
+            )}
+
             <button
               onClick={handleFollowUpsClick}
               className="follow-ups-btn"
@@ -554,7 +613,7 @@ const ExecutiveDashboard = () => {
               )}
             </button>
           </div>
-          
+
           <button
             className="user-avatar"
             onClick={() => setShowProfileModal(true)}
@@ -567,7 +626,7 @@ const ExecutiveDashboard = () => {
       {/* Month/Year Picker */}
       {showMonthPicker && (
         <div className="month-picker-overlay">
-          <MonthPicker 
+          <MonthPicker
             selectedDate={selectedDate}
             onChange={handleMonthYearChange}
             onClose={() => setShowMonthPicker(false)}
@@ -575,7 +634,7 @@ const ExecutiveDashboard = () => {
         </div>
       )}
 
-<main className="dashboard-content">
+      <main className="dashboard-content">
         {/* Target Card - Large */}
         <div className="dashboard-card target-card">
           <div className="card-header">
@@ -640,7 +699,7 @@ const ExecutiveDashboard = () => {
               <PieChart>
                 <Pie
                   data={[
-                    { name: 'Pending', value: serviceData[0]?.pending || 0, fill: '#FF9800' }, 
+                    { name: 'Pending', value: serviceData[0]?.pending || 0, fill: '#FF9800' },
                     { name: 'Completed', value: serviceData[0]?.completed || 0, fill: '#4CAF50' }
                   ]}
                   cx="50%"
@@ -733,7 +792,6 @@ const ExecutiveDashboard = () => {
         </div>
       </main>
 
-
       {/* Profile Modal */}
       {showProfileModal && (
         <ProfileModal
@@ -744,7 +802,7 @@ const ExecutiveDashboard = () => {
       )}
 
       {/* CSS Styles */}
-      <style jsx>{`
+      <style>{`
         :root {
           --primary: #1976d2;
           --primary-dark: #125ea3;
@@ -762,8 +820,8 @@ const ExecutiveDashboard = () => {
           --shadow: 0 4px 12px rgba(0,0,0,0.08);
           --radius: 12px;
           --transition: all 0.3s ease;
-            --text-color: #333333;    /* Default text */
-  --accent-color: #007bff;  /* Blue for highlights */
+          --text-color: #333333;
+          --accent-color: #007bff;
         }
 
         * {
@@ -849,7 +907,7 @@ const ExecutiveDashboard = () => {
           gap: 0.75rem;
         }
 
-        .appointments-btn, .follow-ups-btn {
+        .appointments-btn, .follow-ups-btn, .field-executive-btn {
           position: relative;
           padding: 0.75rem 1.25rem;
           border-radius: var(--radius);
@@ -870,6 +928,15 @@ const ExecutiveDashboard = () => {
         .follow-ups-btn {
           background: linear-gradient(135deg, var(--secondary), var(--secondary-dark));
           color: #fff;
+        }
+
+        .field-executive-btn {
+          background: linear-gradient(135deg, #9C27B0, #7B1FA2);
+          color: #fff;
+        }
+
+        .field-executive-btn:hover {
+          background: linear-gradient(135deg, #7B1FA2, #6A1B9A);
         }
 
         .appointment-count, .follow-up-count {
@@ -1051,72 +1118,71 @@ const ExecutiveDashboard = () => {
           font-size: 1rem;
         }
 
-       /* Month Picker Overlay remains same */
- /* Month Picker Overlay remains same */
-.month-picker-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background-color: rgba(0, 0, 0, 0.5);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1000;
-}
+        /* Month Picker Overlay */
+        .month-picker-overlay {
+          position: fixed;
+          top: 0;
+          left: 0;
+          right: 0;
+          bottom: 0;
+          background-color: rgba(0, 0, 0, 0.5);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          z-index: 1000;
+        }
 
-.month-picker {
-  background-color: var(--card-bg);
-  color: var(--text-color);
-  border-radius: var(--radius);
-  padding: 1.5rem;
-  box-shadow: var(--shadow);
-  width: 300px;
-  max-width: 90%;
-}
+        .month-picker {
+          background-color: var(--card-bg);
+          color: var(--text-color);
+          border-radius: var(--radius);
+          padding: 1.5rem;
+          box-shadow: var(--shadow);
+          width: 300px;
+          max-width: 90%;
+        }
 
-.month-picker-header {
-  display: flex;
-  justify-content: space-between;
-  margin-bottom: 1rem;
-}
+        .month-picker-header {
+          display: flex;
+          justify-content: space-between;
+          margin-bottom: 1rem;
+        }
 
-.month-select,
-.year-select {
-  padding: 0.5rem;
-  border-radius: 4px;
-  border: 1px solid var(--border);
-  background-color: #fff;
-   color: #000;
-  flex: 1;
-  font-size: 0.9rem;
-}
+        .month-select,
+        .year-select {
+          padding: 0.5rem;
+          border-radius: 4px;
+          border: 1px solid var(--border);
+          background-color: #fff;
+          color: #000;
+          flex: 1;
+          font-size: 0.9rem;
+        }
 
-.month-select {
-  margin-right: 0.5rem;
-}
+        .month-select {
+          margin-right: 0.5rem;
+        }
 
-.month-picker-footer {
-  display: flex;
-  justify-content: flex-end;
-  gap: 0.5rem;
-  margin-top: 1rem;
-}
+        .month-picker-footer {
+          display: flex;
+          justify-content: flex-end;
+          gap: 0.5rem;
+          margin-top: 1rem;
+        }
 
-.month-picker-footer button {
-  padding: 0.4rem 0.8rem;
-  background-color: var(--button-bg);
-  color: var(--button-text);
-  border: 1px solid var(--border);
-  border-radius: 4px;
-  cursor: pointer;
-}
+        .month-picker-footer button {
+          padding: 0.4rem 0.8rem;
+          background-color: var(--button-bg);
+          color: var(--button-text);
+          border: 1px solid var(--border);
+          border-radius: 4px;
+          cursor: pointer;
+        }
 
-.month-picker-footer button:hover {
-  background-color: var(--accent-color);
-  color: #fff;
-}
+        .month-picker-footer button:hover {
+          background-color: var(--accent-color);
+          color: #fff;
+        }
 
         .cancel-btn {
           padding: 0.5rem 1rem;

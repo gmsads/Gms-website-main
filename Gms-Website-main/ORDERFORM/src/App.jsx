@@ -55,6 +55,7 @@ import ViewExpenses from './Admin/ViewExpenses';
 import Record from './Executive/Record';
 import StartDesign from './Designer/StartDesign';
 import DesignReport from './Admin/DesignReports';
+import FieldExecutivePage from './Executive/FieldExecutivePage';
 
 function App() {
   return (
@@ -197,6 +198,8 @@ function App() {
           <Route path="anniversary-list" element={<AnniversaryList />} />
           <Route path="price-list" element={<Pricelist />} />
         </Route>
+        
+        {/* Executive Dashboard Route */}
         <Route
           path="/executive-dashboard"
           element={
@@ -205,6 +208,17 @@ function App() {
             </ProtectedRoute>
           }
         />
+        
+        {/* Field Executive Page Route - ADDED THIS SECTION */}
+        <Route
+          path="/field-executive"
+          element={
+            <ProtectedRoute allowedRoles={['fieldexecutive']}>
+              <FieldExecutivePage />
+            </ProtectedRoute>
+          }
+        />
+        
         <Route
           path="/followup"
           element={

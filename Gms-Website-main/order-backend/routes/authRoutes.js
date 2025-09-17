@@ -1,6 +1,25 @@
 const express = require("express");
 const router = express.Router();
 const mongoose = require("mongoose");
+const multer = require('multer');
+const path = require('path');
+
+// Configure multer for file uploads - ADDED
+const storage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    cb(null, 'uploads/');
+  },
+  filename: function (req, file, cb) {
+    cb(null, Date.now() + '-' + Math.round(Math.random() * 1E9) + path.extname(file.originalname));
+  }
+});
+
+const upload = multer({ 
+  storage: storage,
+  limits: {
+    fileSize: 2 * 1024 * 1024 // 2MB limit
+  }
+});
 
 // Import all models at the top (only once)
 const Executive = require("../models/Executive");
@@ -14,7 +33,8 @@ const ItTeam = require("../models/ITTeam");
 const DigitalMarketing = require("../models/DigitalMarketing");
 const ClientService = require("../models/ClientService");
 const Vendor = require("../models/Vendor");
-const Order = require("../models/Order"); // Added for executive-dashboard-data
+const Order = require("../models/Order");
+const FieldExecutive = require("../models/FieldExecutive");
 const Unit = require("../models/Unit");
 
 // ✅ Login route for Executive, Admin, Designer, Account,Service
@@ -34,23 +54,21 @@ router.post("/login", async (req, res) => {
       });
     }
     // Check IT Team
-   // In your authRoutes.js, add this with other role checks
-const itStaff = await ItTeam.findOne({
-  $or: [
-    { name: new RegExp(`^${name.trim()}$`, "i") },
-    { username: new RegExp(`^${name.trim()}$`, "i") }
-  ],
-  password: password.trim()
-});
+    const itStaff = await ItTeam.findOne({
+      $or: [
+        { name: new RegExp(`^${name.trim()}$`, "i") },
+        { username: new RegExp(`^${name.trim()}$`, "i") }
+      ],
+      password: password.trim()
+    });
 
-if (itStaff) {
-  return res.json({
-    success: true,
-    role: "IT",  // Make sure this matches exactly what you'll check in frontend
-    name: itStaff.name,
-    // Include any other fields you need
-  });
-}
+    if (itStaff) {
+      return res.json({
+        success: true,
+        role: "IT",
+        name: itStaff.name,
+      });
+    }
     // Add this with your other model checks in the login route
     const salesManager = await SalesManager.findOne({
       name: new RegExp(`^${name.trim()}$`, "i"),
@@ -59,7 +77,7 @@ if (itStaff) {
     if (salesManager) {
       return res.json({
         success: true,
-        role: "Sales Manager",  // Note: Consistent capitalization matters!
+        role: "Sales Manager",
         name: salesManager.name,
       });
     }
@@ -71,7 +89,7 @@ if (itStaff) {
     if (serviceManager) {
       return res.json({
         success: true,
-        role: "Service Manager",  // Consistent capitalization
+        role: "Service Manager",
         name: serviceManager.name,
       });
     }
@@ -143,6 +161,30 @@ if (itStaff) {
         name: vendor.name
       });
     }
+    // Check Field Executive
+    const fieldExecutive = await FieldExecutive.findOne({
+      name: new RegExp(`^${name.trim()}$`, "i"),
+      password: password.trim(),
+    });
+    if (fieldExecutive) {
+      return res.json({
+        success: true,
+        role: "FieldExecutive",
+        name: fieldExecutive.name,
+      });
+    }
+    const unitEmployee = await Unit.findOne({
+      name: new RegExp(`^${name.trim()}$`, "i"),
+      password: password.trim(),
+    });
+    if (unitEmployee) {
+      return res.json({
+        success: true,
+        role: "Unit",
+        name: unitEmployee.name,
+      });
+    }
+
     // Check Account
     const account = await Account.findOne({
       name: new RegExp(`^${name.trim()}$`, "i"),
@@ -590,8 +632,7 @@ router.get("/executive-dashboard-data", async (req, res) => {
   }
 });
 
-
-// Get all employees - improved error handling
+// Get all employees - ensure all categories are properly included
 router.get("/employees", async (req, res) => {
   try {
     const [
@@ -605,7 +646,8 @@ router.get("/employees", async (req, res) => {
       itTeams,
       digitalMarketings,
       clientServices,
-      units   // ✅ here you fetch Unit employees
+      units,
+      fieldExecutives
     ] = await Promise.all([
       Executive.find({}).lean(),
       Admin.find({}).lean(),
@@ -617,7 +659,8 @@ router.get("/employees", async (req, res) => {
       ItTeam.find({}).lean(),
       DigitalMarketing.find({}).lean(),
       ClientService.find({}).lean(),
-      Unit.find({}).lean()
+      Unit.find({}).lean(),
+      FieldExecutive.find({}).lean() // Ensure this is included
     ]);
 
     const employeeCategories = {
@@ -631,7 +674,8 @@ router.get("/employees", async (req, res) => {
       ITTeam: itTeams,
       DigitalMarketing: digitalMarketings,
       ClientService: clientServices,
-      Unit: units   // ✅ make sure it’s "units" not "unit"
+      Unit: units,
+      FieldExecutive: fieldExecutives // Ensure consistent naming
     };
 
     res.json(employeeCategories);
@@ -639,7 +683,6 @@ router.get("/employees", async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
-
 
 // Get user profile
 router.get("/user-profile", async (req, res) => {
@@ -658,6 +701,8 @@ router.get("/user-profile", async (req, res) => {
       { model: ItTeam, name: "ITTeam" },
       { model: DigitalMarketing, name: "DigitalMarketing" },
       { model: ClientService, name: "ClientService" },
+      { model: Unit, name: "Unit" },
+      { model: FieldExecutive, name: "FieldExecutive" },
     ];
 
     let user = null;
@@ -710,6 +755,8 @@ router.put("/update-profile", async (req, res) => {
       ItTeam,
       DigitalMarketing,
       ClientService,
+      Unit,
+      FieldExecutive
     };
 
     // Find current user
@@ -852,14 +899,55 @@ router.post("/add-unit", async (req, res) => {
     res.status(500).json({ error: "Server error" });
   }
 });
-router.get("/units", async (req, res) => {
+
+// Update the route to use multer middleware
+router.post("/add-field-executive", upload.single('image'), async (req, res) => {
+  const {
+    username,
+    name,
+    password,
+    phone,
+    email,
+    guardianName,
+    aadhar,
+    joiningDate,
+    experience
+  } = req.body;
+
   try {
-    const units = await Unit.find();
-    res.json(units);
-  } catch (error) {
-    console.error("Error fetching units:", error);
-    res.status(500).json({ error: "Internal server error" });
+    // Check if username or name already exists
+    const existing = await FieldExecutive.findOne({
+      $or: [{ username }, { name }],
+    });
+
+    if (existing) {
+      return res.status(400).json({
+        error:
+          existing.username === username
+            ? "Username already exists"
+            : "Name already exists",
+      });
+    }
+
+    // Create new Field Executive with image path if available
+    const newExec = new FieldExecutive({
+      username,
+      name,
+      password,
+      phone,
+      email,
+      guardianName,
+      aadhar,
+      joiningDate,
+      experience,
+      image: req.file ? req.file.filename : null // Add image path if file was uploaded
+    });
+
+    await newExec.save();
+    res.status(201).json({ message: "Field Executive added successfully" });
+  } catch (err) {
+    console.error("Error saving Field Executive:", err);
+    res.status(500).json({ error: "Server error: " + err.message });
   }
 });
-
 module.exports = router;
